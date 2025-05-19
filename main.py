@@ -22,14 +22,21 @@ HEADERS = {
     "Content-Type": "application/json"
 }
 
-obj = SmartConnect(api_key="ezWgejKX")
+def get_smartconnect_obj():
+    import pyotp
+    from SmartApi.smartConnect import SmartConnect
+    api_key = "ezWgejKX"
+    client_code = "AAAM735506"
+    password = "1793"
+    totp_secret = "FWONPNHOM6VGBYQEZ2GNTKAA5M"
+    obj = SmartConnect(api_key=api_key)
+    totp = pyotp.TOTP(totp_secret).now()
+    data = obj.generateSession(client_code, password, totp)
+    refreshToken = data['data']['refreshToken']
+    obj.getfeedToken()
+    obj.getProfile(refreshToken)
+    return obj
 
-totp = pyotp.TOTP("FWONPNHOM6VGBYQEZ2GNTKAA5M").now()
-data = obj.generateSession("AAAM735506", "1793", totp)
-refreshToken = data['data']['refreshToken']
-feedToken = obj.getfeedToken()
-userProfile = obj.getProfile(refreshToken)
-print(obj.holding(),obj.allholding())
 nifty_50_symbols = [
     "ADANIENT", "ADANIPORTS", "ASIANPAINT", "AXISBANK", "BAJAJ-AUTO", "BAJFINANCE", "BAJAJFINSV",
     "BPCL", "BHARTIARTL", "BRITANNIA", "CIPLA", "COALINDIA", "DIVISLAB", "DRREDDY", "EICHERMOT",
@@ -88,6 +95,7 @@ print(len(nifty_50_array), len(nifty_100_array), len(small_cap_100_array))
 
 @app.route("/nifty50", methods=["GET"])
 def trade_nifty_50_stocks():
+    obj = get_smartconnect_obj()
     print("in nifty 50")
     gt_5 = []
     gt_4 = []
@@ -162,6 +170,7 @@ def trade_nifty_50_stocks():
 
 @app.route("/nifty100", methods=["GET"])
 def trade_nifty_100_stocks():
+    obj = get_smartconnect_obj()
     gt_5 = []
     gt_4 = []
     gt_3 = []
@@ -228,6 +237,7 @@ def trade_nifty_100_stocks():
 
 @app.route("/smallcap", methods=["GET"])
 def trade_smallcap_stocks():
+    obj = get_smartconnect_obj()
     gt_5 = []
     gt_4 = []
     gt_3 = []
@@ -288,6 +298,7 @@ def trade_smallcap_stocks():
 
 @app.route("/sell", methods=["GET"])
 def sell():
+    obj = get_smartconnect_obj()
     holdings = obj.holding()["data"]
     for stock in holdings:
         ltp = stock["ltp"]
@@ -299,22 +310,20 @@ def sell():
 
         if ltp < close:
             print(f"Selling {symbol}: LTP ({ltp}) < Close ({close})")
-            
-            sell_order = api.place_order(
-                variety="NORMAL",
-                tradingsymbol=symbol,
-                symboltoken=token,
-                transactiontype="SELL",
-                exchange=exchange,
-                ordertype="MARKET",
-                producttype="DELIVERY",
-                duration="DAY",
-                price=0.0,
-                squareoff="0",
-                stoploss="0",
-                quantity=quantity
-            )
-
+            sell_order = obj.placeOrder({
+                "variety": "NORMAL",
+                "tradingsymbol": symbol,
+                "symboltoken": token,
+                "transactiontype": "SELL",
+                "exchange": exchange,
+                "ordertype": "MARKET",
+                "producttype": "DELIVERY",
+                "duration": "DAY",
+                "price": 0.0,
+                "squareoff": "0",
+                "stoploss": "0",
+                "quantity": quantity
+            })
             print("Sell Order Response:", sell_order)
 
 if __name__ == "__main__":
