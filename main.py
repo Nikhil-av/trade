@@ -29,7 +29,7 @@ data = obj.generateSession("AAAM735506", "1793", totp)
 refreshToken = data['data']['refreshToken']
 feedToken = obj.getfeedToken()
 userProfile = obj.getProfile(refreshToken)
-
+print(obj.holding(),obj.allholding())
 nifty_50_symbols = [
     "ADANIENT", "ADANIPORTS", "ASIANPAINT", "AXISBANK", "BAJAJ-AUTO", "BAJFINANCE", "BAJAJFINSV",
     "BPCL", "BHARTIARTL", "BRITANNIA", "CIPLA", "COALINDIA", "DIVISLAB", "DRREDDY", "EICHERMOT",
@@ -286,6 +286,36 @@ def trade_smallcap_stocks():
     except Exception as e:
         return jsonify({"detail": str(e)}), 500
 
+@app.route("/sell", methods=["GET"])
+def sell():
+    holdings = obj.holding()["data"]
+    for stock in holdings:
+        ltp = stock["ltp"]
+        close = stock["close"]
+        quantity = stock["quantity"]
+        symbol = stock["tradingsymbol"]
+        exchange = stock["exchange"]
+        token = stock["symboltoken"]
+
+        if ltp < close:
+            print(f"Selling {symbol}: LTP ({ltp}) < Close ({close})")
+            
+            sell_order = api.place_order(
+                variety="NORMAL",
+                tradingsymbol=symbol,
+                symboltoken=token,
+                transactiontype="SELL",
+                exchange=exchange,
+                ordertype="MARKET",
+                producttype="DELIVERY",
+                duration="DAY",
+                price=0.0,
+                squareoff="0",
+                stoploss="0",
+                quantity=quantity
+            )
+
+            print("Sell Order Response:", sell_order)
 
 if __name__ == "__main__":
     app.run(debug=True)
