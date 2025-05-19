@@ -88,6 +88,7 @@ print(len(nifty_50_array), len(nifty_100_array), len(small_cap_100_array))
 
 @app.route("/nifty50", methods=["GET"])
 def trade_nifty_50_stocks():
+    print("in nifty 50")
     gt_5 = []
     gt_4 = []
     gt_3 = []
@@ -97,7 +98,9 @@ def trade_nifty_50_stocks():
     try:
         for stock in nifty_50_array:
             symbol = stock['symbol'] + ".NS"
+            print(symbol)
             stock_data = yf.Ticker(symbol)
+            print(stock_data)
             data = stock_data.history(period='1d')
             if not data.empty:
                 open_price = data['Open'][0]
