@@ -176,10 +176,12 @@ def trade_nifty_100_stocks():
     gt_3 = []
     gt_2_5 = []
     tradable_stocks = []
+    print("in nifty 100")
     try:
         for stock in nifty_100_array:
             symbol = stock['symbol'] + ".NS"
             stock_data = yf.Ticker(symbol)
+            print(stock_data)
             data = stock_data.history(period='1d')
             if not data.empty:
                 open_price = data['Open'][0]
