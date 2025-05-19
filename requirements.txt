@@ -2,5 +2,5 @@ Flask
 requests
 pyotp
 yfinance
-smartapi
+smartapi-python
 gunicorn
