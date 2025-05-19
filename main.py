@@ -1,5 +1,6 @@
 from flask import Flask, jsonify, request
 import requests, pyotp
+import time
 from typing import Optional
 from SmartApi.smartConnect import SmartConnect
 import yfinance as yf
@@ -36,7 +37,15 @@ def get_smartconnect_obj():
     obj.getfeedToken()
     obj.getProfile(refreshToken)
     return obj
-
+obj=get_smartconnect_obj()
+mode="FULL"
+exchangeTokens= {
+"BSE": [
+"3045"
+]
+}
+marketData=obj.getMarketData(mode, exchangeTokens)
+print(marketData)
 nifty_50_symbols = [
     "ADANIENT", "ADANIPORTS", "ASIANPAINT", "AXISBANK", "BAJAJ-AUTO", "BAJFINANCE", "BAJAJFINSV",
     "BPCL", "BHARTIARTL", "BRITANNIA", "CIPLA", "COALINDIA", "DIVISLAB", "DRREDDY", "EICHERMOT",
@@ -92,29 +101,39 @@ for symb in nifty_smallcap_100_symbols:
         small_cap_100_array.append(stocks[0])
 print(len(nifty_50_array), len(nifty_100_array), len(small_cap_100_array))
 
+def batch(iterable, n=1):
+    l = len(iterable)
+    for ndx in range(0, l, n):
+        yield iterable[ndx:min(ndx + n, l)]
+
+def fetch_market_data_bulk(obj, stocks, mode="FULL", exchange="BSE", batch_size=25, sleep_time=4):
+    symboltoken_to_stock = {stock['token']: stock for stock in stocks}
+    tokens = [stock['token'] for stock in stocks]
+    all_market_data = {}
+    for token_batch in batch(tokens, batch_size):
+        exchangeTokens = {exchange: token_batch}
+        marketData = obj.getMarketData(mode, exchangeTokens)
+        if marketData['status'] and 'data' in marketData and 'fetched' in marketData['data']:
+            for item in marketData['data']['fetched']:
+                all_market_data[item['symbolToken']] = item
+        time.sleep(sleep_time)
+    return all_market_data, symboltoken_to_stock
 
 @app.route("/nifty50", methods=["GET"])
 def trade_nifty_50_stocks():
     obj = get_smartconnect_obj()
     print("in nifty 50")
-    gt_5 = []
-    gt_4 = []
-    gt_3 = []
-    gt_2_5 = []
-    gt_2 = []
+    gt_5, gt_4, gt_3, gt_2_5, gt_2 = [], [], [], [], []
     tradable_stocks = []
     try:
-        for stock in nifty_50_array:
-            symbol = stock['symbol'] + ".NS"
-            print(symbol)
-            stock_data = yf.Ticker(symbol)
-            print(stock_data)
-            data = stock_data.history(period='1d')
-            if not data.empty:
-                open_price = data['Open'][0]
-                close_price = data['Close'][0]
+        market_data, token_map = fetch_market_data_bulk(obj, nifty_50_array)
+        for token, data in market_data.items():
+            close_price = data.get('ltp')
+            open_price = data.get('open')
+            if close_price is not None and open_price is not None:
                 percent_change = ((close_price - open_price) / open_price) * 100
                 if close_price < 2500:
+                    stock = token_map[token]
                     if percent_change > 5:
                         gt_5.append(stock)
                     elif percent_change > 4:
@@ -135,19 +154,15 @@ def trade_nifty_50_stocks():
         if len(tradable_stocks) <= 5:
             tradable_stocks += gt_2
         for trade_stock in tradable_stocks:
-            symbol = trade_stock['symbol'] + ".NS"
-            stock_data = yf.Ticker(symbol)
-            data = stock_data.history(period='1d')
-            if not data.empty:
-                close_price = data['Close'][0]
-                if close_price > 500:
-                    quantity = 1
-                else:
-                    quantity = int(500 // close_price)
-                    if quantity < 1:
-                        quantity = 1
-            else:
+            token = trade_stock['token']
+            data = market_data.get(token, {})
+            close_price = data.get('close', 1)
+            if close_price > 500:
                 quantity = 1
+            else:
+                quantity = int(500 // close_price)
+                if quantity < 1:
+                    quantity = 1
             orderparams = {
                 "variety": "NORMAL",
                 "tradingsymbol": trade_stock['symbol'],
@@ -167,27 +182,21 @@ def trade_nifty_50_stocks():
     except Exception as e:
         return jsonify({"detail": str(e)}), 500
 
-
 @app.route("/nifty100", methods=["GET"])
 def trade_nifty_100_stocks():
     obj = get_smartconnect_obj()
-    gt_5 = []
-    gt_4 = []
-    gt_3 = []
-    gt_2_5 = []
+    gt_5, gt_4, gt_3, gt_2_5 = [], [], [], []
     tradable_stocks = []
     print("in nifty 100")
     try:
-        for stock in nifty_100_array:
-            symbol = stock['symbol'] + ".NS"
-            stock_data = yf.Ticker(symbol)
-            print(stock_data)
-            data = stock_data.history(period='1d')
-            if not data.empty:
-                open_price = data['Open'][0]
-                close_price = data['Close'][0]
+        market_data, token_map = fetch_market_data_bulk(obj, nifty_100_array)
+        for token, data in market_data.items():
+            close_price = data.get('ltp')
+            open_price = data.get('open')
+            if close_price is not None and open_price is not None:
                 percent_change = ((close_price - open_price) / open_price) * 100
                 if close_price < 2500:
+                    stock = token_map[token]
                     if percent_change > 5:
                         gt_5.append(stock)
                     elif percent_change > 4:
@@ -204,19 +213,15 @@ def trade_nifty_100_stocks():
         if len(tradable_stocks) <= 5:
             tradable_stocks += gt_2_5
         for trade_stock in tradable_stocks:
-            symbol = trade_stock['symbol'] + ".NS"
-            stock_data = yf.Ticker(symbol)
-            data = stock_data.history(period='1d')
-            if not data.empty:
-                close_price = data['Close'][0]
-                if close_price > 500:
-                    quantity = 1
-                else:
-                    quantity = int(500 // close_price)
-                    if quantity < 1:
-                        quantity = 1
-            else:
+            token = trade_stock['token']
+            data = market_data.get(token, {})
+            close_price = data.get('close', 1)
+            if close_price > 500:
                 quantity = 1
+            else:
+                quantity = int(500 // close_price)
+                if quantity < 1:
+                    quantity = 1
             orderparams = {
                 "variety": "NORMAL",
                 "tradingsymbol": trade_stock['symbol'],
@@ -236,24 +241,20 @@ def trade_nifty_100_stocks():
     except Exception as e:
         return jsonify({"detail": str(e)}), 500
 
-
 @app.route("/smallcap", methods=["GET"])
 def trade_smallcap_stocks():
     obj = get_smartconnect_obj()
-    gt_5 = []
-    gt_4 = []
-    gt_3 = []
+    gt_5, gt_4, gt_3 = [], [], []
     tradable_stocks = []
     try:
-        for stock in small_cap_100_array:
-            symbol = stock['symbol'] + ".NS"
-            stock_data = yf.Ticker(symbol)
-            data = stock_data.history(period='1d')
-            if not data.empty:
-                open_price = data['Open'][0]
-                close_price = data['Close'][0]
+        market_data, token_map = fetch_market_data_bulk(obj, small_cap_100_array)
+        for token, data in market_data.items():
+            close_price = data.get('ltp')
+            open_price = data.get('open')
+            if close_price is not None and open_price is not None:
                 percent_change = ((close_price - open_price) / open_price) * 100
                 if close_price < 2500:
+                    stock = token_map[token]
                     if percent_change > 5:
                         gt_5.append(stock)
                     elif percent_change > 4:
@@ -266,19 +267,15 @@ def trade_smallcap_stocks():
         if len(tradable_stocks) <= 5:
             tradable_stocks += gt_3
         for trade_stock in tradable_stocks:
-            symbol = trade_stock['symbol'] + ".NS"
-            stock_data = yf.Ticker(symbol)
-            data = stock_data.history(period='1d')
-            if not data.empty:
-                close_price = data['Close'][0]
-                if close_price > 500:
-                    quantity = 1
-                else:
-                    quantity = int(500 // close_price)
-                    if quantity < 1:
-                        quantity = 1
-            else:
+            token = trade_stock['token']
+            data = market_data.get(token, {})
+            close_price = data.get('close', 1)
+            if close_price > 500:
                 quantity = 1
+            else:
+                quantity = int(500 // close_price)
+                if quantity < 1:
+                    quantity = 1
             orderparams = {
                 "variety": "NORMAL",
                 "tradingsymbol": trade_stock['symbol'],
@@ -327,7 +324,6 @@ def sell():
                 "quantity": quantity
             })
             print("Sell Order Response:", sell_order)
-
 if __name__ == "__main__":
     app.run(debug=True)
 
