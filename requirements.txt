@@ -1,8 +1,6 @@
 Flask
 requests
-pyotp
 yfinance
-smartapi-python
 gunicorn
 attrs==23.1.0
 autobahn==23.6.2
