@@ -154,8 +154,9 @@ def fetch_candle_data_bulk(obj, stocks, interval="ONE_DAY", exchange="BSE", batc
         last_trading_day = today - datetime.timedelta(days=1)
     else:
         last_trading_day = today - datetime.timedelta(days=1)
+    last_trading_day=today
     # Go back 40 days to ensure we get 30 trading days (skip weekends/holidays)
-    fromdate = (last_trading_day - datetime.timedelta(days=90)).strftime("%Y-%m-%d") + " 09:00"
+    fromdate = (last_trading_day - datetime.timedelta(days=150)).strftime("%Y-%m-%d") + " 09:00"
     todate = last_trading_day.strftime("%Y-%m-%d") + " 15:30"
     for token_batch in batch(tokens, batch_size):
         for token in token_batch:
@@ -610,7 +611,16 @@ def detect_candlestick_patterns(candles):
 #         return jsonify({"candlestick_patterns": result})
 #     except Exception as e:
 #         return jsonify({"detail": str(e)}), 500
-
+def interpret_ema(closes, ema):
+    if ema is None or not closes:
+        return None
+    price = closes[-1]
+    if price > ema:
+        return "Price above EMA (bullish)"
+    elif price < ema:
+        return "Price below EMA (bearish)"
+    else:
+        return "Price at EMA (neutral)"
 
 def calculate_rsi(closes, period=14):
     closes = np.array(closes)
@@ -677,11 +687,65 @@ def calculate_atr(candles, period=14):
     atr = np.mean(trs[-period:])
     return round(atr, 2)
 
+def interpret_rsi(rsi):
+    if rsi is None:
+        return None
+    if rsi > 70:
+        return "Overbought"
+    elif rsi < 30:
+        return "Oversold"
+    elif 45 < rsi < 55:
+        return "Neutral"
+    elif rsi > 55:
+        return "Bullish momentum"
+    elif rsi < 45:
+        return "Bearish momentum"
+    return None
+
+def interpret_macd(macd, macd_signal):
+    if macd is None or macd_signal is None:
+        return None
+    if macd > macd_signal:
+        return "Bullish crossover"
+    elif macd < macd_signal:
+        return "Bearish crossover"
+    else:
+        return "Neutral"
+
+def interpret_bollinger(closes, upper, mid, lower):
+    if upper is None or mid is None or lower is None or not closes:
+        return None
+    price = closes[-1]
+    if price > upper:
+        return "Breakout above upper band (overbought/strong momentum)"
+    elif price < lower:
+        return "Breakdown below lower band (oversold/weakness)"
+    elif price > mid:
+        return "Above average (bullish bias)"
+    elif price < mid:
+        return "Below average (bearish bias)"
+    else:
+        return "Near average"
+    
+def interpret_atr(atr, closes):
+    if atr is None or not closes:
+        return None
+    # ATR is relative to price, so we can give a volatility comment
+    price = closes[-1]
+    if price == 0:
+        return None
+    ratio = atr / price
+    if ratio > 0.05:
+        return "High volatility"
+    elif ratio > 0.025:
+        return "Moderate volatility"
+    else:
+        return "Low volatility"
+
 @app.route("/nifty100/tech", methods=["GET"])
 def get_nifty100_candlestick_patterns():
     obj = get_smartconnect_obj()
     try:
-        # Fetch last 30 candles for each stock to cover all patterns and indicators
         candle_data, token_map = fetch_candle_data_bulk(obj, nifty_100_array, num_candles=90)
         result = []
         bullish_patterns = {
@@ -706,32 +770,36 @@ def get_nifty100_candlestick_patterns():
             bb_upper, bb_mid, bb_lower = calculate_bollinger_bands(closes)
             atr = calculate_atr(candles)
             last_volume = volumes[-1] if volumes else None
+            ltp = closes[-1] if closes else None
             stock = token_map[token]
             result.append({
                 "symbol": stock["symbol"],
                 "token": stock["token"],
+                "ltp": ltp,
                 "patterns": positive,
                 "rsi": rsi,
+                "rsi_interpretation": interpret_rsi(rsi),
                 "macd": macd,
                 "macd_signal": macd_signal,
+                "macd_interpretation": interpret_macd(macd, macd_signal),
                 "ema": ema,
                 "bollinger_upper": bb_upper,
                 "bollinger_mid": bb_mid,
                 "bollinger_lower": bb_lower,
+                "bollinger_interpretation": interpret_bollinger(closes, bb_upper, bb_mid, bb_lower),
+                "emea_interpretation": interpret_ema(closes, ema),
                 "atr": atr,
+                "atr_interpretation": interpret_atr(atr, closes),
                 "volume": last_volume
             })
         return jsonify({"candlestick_patterns": result})
     except Exception as e:
         return jsonify({"detail": str(e)}), 500
 
-
-
 @app.route("/nifty50/tech", methods=["GET"])
 def get_nifty50_candlestick_patterns():
     obj = get_smartconnect_obj()
     try:
-        # Fetch last 30 candles for each stock to cover all patterns and indicators
         candle_data, token_map = fetch_candle_data_bulk(obj, nifty_50_array, num_candles=90)
         result = []
         bullish_patterns = {
@@ -756,19 +824,26 @@ def get_nifty50_candlestick_patterns():
             bb_upper, bb_mid, bb_lower = calculate_bollinger_bands(closes)
             atr = calculate_atr(candles)
             last_volume = volumes[-1] if volumes else None
+            ltp = closes[-1] if closes else None
             stock = token_map[token]
             result.append({
                 "symbol": stock["symbol"],
                 "token": stock["token"],
+                "ltp": ltp,
                 "patterns": positive,
                 "rsi": rsi,
+                "rsi_interpretation": interpret_rsi(rsi),
                 "macd": macd,
                 "macd_signal": macd_signal,
+                "macd_interpretation": interpret_macd(macd, macd_signal),
                 "ema": ema,
+                                "emea_interpretation": interpret_ema(closes, ema),
                 "bollinger_upper": bb_upper,
                 "bollinger_mid": bb_mid,
                 "bollinger_lower": bb_lower,
+                "bollinger_interpretation": interpret_bollinger(closes, bb_upper, bb_mid, bb_lower),
                 "atr": atr,
+                "atr_interpretation": interpret_atr(atr, closes),
                 "volume": last_volume
             })
         return jsonify({"candlestick_patterns": result})
@@ -779,7 +854,6 @@ def get_nifty50_candlestick_patterns():
 def get_small_candlestick_patterns():
     obj = get_smartconnect_obj()
     try:
-        # Fetch last 30 candles for each stock to cover all patterns and indicators
         candle_data, token_map = fetch_candle_data_bulk(obj, small_cap_100_array, num_candles=90)
         result = []
         bullish_patterns = {
@@ -804,19 +878,26 @@ def get_small_candlestick_patterns():
             bb_upper, bb_mid, bb_lower = calculate_bollinger_bands(closes)
             atr = calculate_atr(candles)
             last_volume = volumes[-1] if volumes else None
+            ltp = closes[-1] if closes else None
             stock = token_map[token]
             result.append({
                 "symbol": stock["symbol"],
                 "token": stock["token"],
+                "ltp": ltp,
                 "patterns": positive,
                 "rsi": rsi,
+                "rsi_interpretation": interpret_rsi(rsi),
                 "macd": macd,
                 "macd_signal": macd_signal,
+                "macd_interpretation": interpret_macd(macd, macd_signal),
                 "ema": ema,
+                                "emea_interpretation": interpret_ema(closes, ema),
                 "bollinger_upper": bb_upper,
                 "bollinger_mid": bb_mid,
                 "bollinger_lower": bb_lower,
+                "bollinger_interpretation": interpret_bollinger(closes, bb_upper, bb_mid, bb_lower),
                 "atr": atr,
+                "atr_interpretation": interpret_atr(atr, closes),
                 "volume": last_volume
             })
         return jsonify({"candlestick_patterns": result})
