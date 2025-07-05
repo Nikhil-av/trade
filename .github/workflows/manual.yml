@@ -1,19 +1,18 @@
-name: Scheduled API Trigger
+name: Send Telegram Message
 
 on:
   schedule:
-    # Runs every weekday at 5:30 PM IST (which is 12:00 PM UTC)
-    - cron: '0 12 * * 1-5'  # Mon to Fri at 12:00 PM UTC
-  workflow_dispatch:  # Allows manual triggering too
+    # Runs at 5:42 PM IST (12:12 PM UTC), Monday to Friday
+    - cron: '12 12 * * 1-5'
+  workflow_dispatch:
 
 jobs:
-  call_api:
+  send_telegram_message:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Make API Call
+      - name: Send Telegram Message
         run: |
-          curl -X POST "https://your-api-url.com/run" \
-          -H "Authorization: Bearer YOUR_API_KEY" \
+          curl -X POST "https://recommend-still-lake-7638.fly.dev/telegram/send_message" \
           -H "Content-Type: application/json" \
-          -d '{"param1": "value1", "param2": "value2"}'
+          -d '{"chat_id":"1192057887", "message":"fhmbng"}'
