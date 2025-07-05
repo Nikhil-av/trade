@@ -1,0 +1,19 @@
+name: Scheduled API Trigger
+
+on:
+  schedule:
+    # Runs every weekday at 5:30 PM IST (which is 12:00 PM UTC)
+    - cron: '0 12 * * 1-5'  # Mon to Fri at 12:00 PM UTC
+  workflow_dispatch:  # Allows manual triggering too
+
+jobs:
+  call_api:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Make API Call
+        run: |
+          curl -X POST "https://your-api-url.com/run" \
+          -H "Authorization: Bearer YOUR_API_KEY" \
+          -H "Content-Type: application/json" \
+          -d '{"param1": "value1", "param2": "value2"}'
