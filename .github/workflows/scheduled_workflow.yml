@@ -1,0 +1,16 @@
+on:
+  schedule:
+    # Runs at 5:42 PM IST (12:12 PM UTC), Monday to Friday
+    - cron: '23 12 * * 1-5'  # 12:23 PM UTC = 5:53 PM IST, Monday to Friday
+  workflow_dispatch:
+
+jobs:
+  send_telegram_message:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Send Telegram Message
+        run: |
+          curl -X POST "https://recommend-still-lake-7638.fly.dev/telegram/send_message" \
+          -H "Content-Type: application/json" \
+          -d '{"chat_id":"1192057887", "message":"fhmbng"}'
