@@ -1,7 +1,7 @@
 on:
   schedule:
-    # Runs at 5:42 PM IST (12:12 PM UTC), Monday to Friday
-    - cron: '23 12 * * 1-5'  # 12:23 PM UTC = 5:53 PM IST, Monday to Friday
+    # Runs at 6:05 PM IST (12:35 PM UTC), Monday to Friday
+    - cron: '35 12 * * 1-5'
   workflow_dispatch:
 
 jobs:
